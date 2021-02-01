@@ -1,0 +1,97 @@
+---
+title: "Hey FRED, where's the beef?"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(lubridate)
+library(shiny)
+library(plotly)
+MB<- read.csv("/Users/lmcdermott/Desktop/Shiny/MonetaryBase.csv")
+GDP <- read.csv("/Users/lmcdermott/Desktop/Shiny/GDP.csv")
+Infl <- read.csv("/Users/lmcdermott/Desktop/Shiny/Inflation.csv")
+
+GDP<- GDP %>% 
+  mutate(year=year(as.Date(DATE))) %>% 
+  group_by(year) %>% 
+  summarise(GDP=GDP[month(as.Date(DATE)) == 1]) %>% 
+  mutate(C1=ifelse(year <=2008
+                , 'Before Crisis'
+                ,'After Crisis'))
+
+# need to add the year column
+Infl <- Infl %>% 
+  mutate(year = year(as.Date(DATE))) %>% 
+  select(-DATE)
+
+x <- MB %>% 
+  mutate(year=year(as.Date(DATE))) %>% 
+  group_by(year) %>% 
+  summarise(MB=mean(BOGMBASE, na.rm = T)) %>% 
+  left_join(GDP, by = 'year') %>% 
+  left_join(Infl, by = 'year') %>% 
+  filter(year >= 1996)
+t <- list(
+  family = "sans serif",
+  size = 14,
+  color = toRGB("grey50"))
+```
+
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+```{r}
+ selectInput("xaxis", label = h3("Please choose a variable:"), 
+    choices = c('GDP', 'Inflation'), 
+    selected = 1)
+```
+The monetary base represents the total US currency in circulation in public as well as that held in banks. The Gross Domestic Product is the representation. of the value of all the goods and services produced within the US in a given year. They have shared a predictably strong correlation of 98% in the twelve years leading up to the 2008 economic crisis. In the 12 years following the crisis, that correlation fell to 81%.
+
+
+The Federal Reserve initiated a massive expansion of the monetary base in the years after the crisis, creating and lending money to banks at zero interest as well as purchasing toxic derivative assets and treasuries.
+
+
+Although all the numbers here were provided directly by the Federal Reserve Economic Data of St. Louis, please note that in 2011 reporters from Bloomberge sued the and uncovered an additional $7.7 Trillion in unreported monetary expansion not represented here.
+
+
+The correlation between the inflationary index and GDP fell from 55% to 22% over the same periods.
+
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+```{r}
+renderPlotly({
+  
+  xaxis_str <- switch(input$xaxis,
+                  'GDP' = '~GDP/1e+03'
+                  , 'Inflation' = '~FPCPITOTLZGUSA')
+  x_str <- switch(input$xaxis,
+                  'GDP' = "GDP ($ Trillions)"
+                  , 'Inflation' = 'Inflation (%)')
+  
+  plot_ly(data = x
+          , x = eval(parse(text = xaxis_str))
+          , y = ~MB/1e+06
+          , color = ~C1
+          , colors = 'Set1'
+          , text = ~year
+          , height = 500
+          , width = 800) %>% 
+    add_markers() %>% 
+    add_text(textfont = t, textposition = "top right", showlegend = FALSE) %>% 
+    layout(title = sprintf("Monetary Base vs %s", input$xaxis_str)
+           , xaxis = list(title = x_str)
+           , yaxis = list(title = "Monetary Base ($ Trillions)")
+           )
+    
+  
+
+})
+```
+
